@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Create form — Krypto{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="card kr-form-card">
+    <div class="card-body">
+      <h1 class="h4 mb-4">Create a new form</h1>
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label" for="title">Title</label>
+          <input class="form-control" id="title" name="title" required autofocus
+                 placeholder="e.g. Patient intake questionnaire">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="description">Description (optional)</label>
+          <input class="form-control" id="description" name="description"
+                 placeholder="Shown to respondents above the form">
+        </div>
+        <div class="mb-4">
+          <label class="form-label" for="fields">Fields — one label per line</label>
+          <textarea class="form-control" id="fields" name="fields" rows="6" required
+                    placeholder="Full name&#10;Current symptoms&#10;Medication history"></textarea>
+          <div class="form-text">Each line becomes one text field respondents fill in.</div>
+        </div>
+        <button class="btn btn-primary w-100" type="submit">Create form</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

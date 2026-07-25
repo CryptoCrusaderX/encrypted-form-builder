@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Responses — {{ form['title'] }} — Krypto{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="kr-page-title mb-0">
+      {{ form['title'] }}
+      {% if form['is_active'] %}
+        <span class="badge kr-badge-active align-middle">Active</span>
+      {% else %}
+        <span class="badge kr-badge-retired align-middle">Retired</span>
+      {% endif %}
+    </h1>
+    <div class="d-flex gap-2">
+      {% if form['is_active'] %}
+        <form method="post" action="{{ url_for('retire_form', form_uuid=form['form_uuid']) }}"
+              onsubmit="return confirm('Retire this form? Respondents will no longer be able to submit responses.');">
+          <button class="btn btn-secondary" type="submit">
+            <i class="bi bi-archive"></i> Retire form
+          </button>
+        </form>
+      {% endif %}
+      <button class="btn btn-primary" id="decrypt-btn" {% if not responses %}disabled{% endif %}>
+        <i class="bi bi-unlock-fill"></i> Decrypt all
+      </button>
+    </div>
+  </div>
+
+  {% if form['is_active'] %}
+    <div class="card mb-4">
+      <div class="card-body py-3">
+        <label class="form-label mb-1">Shareable respondent link</label>
+        <div class="d-flex gap-2 align-items-center">
+          <input class="form-control font-monospace flex-grow-1" type="text"
+                 value="{{ share_link }}" readonly onclick="this.select()">
+          <button class="btn btn-secondary flex-shrink-0" type="button"
+                  data-link="{{ share_link }}" onclick="copyShareLink(this)">
+            <i class="bi bi-clipboard"></i> Copy link
+          </button>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-info small">
+      <i class="bi bi-archive me-1"></i> This form is retired — respondents see
+      a “form closed” page and can no longer submit.
+    </div>
+  {% endif %}
+
+  <p class="kr-meta mb-4">
+    The server delivered <strong>ciphertext only</strong>. “Decrypt all” imports
+    your RSA private key (unlocked from your PKCS#12 keystore at login) into
+    this browser and decrypts locally — plaintext never touches the server.
+  </p>
+
+  <div id="status-area"></div>
+
+  {% if not responses %}
+    <div class="card kr-center-card">
+      <div class="card-body py-5">
+        <div class="kr-feature-icon mb-3"><i class="bi bi-inbox"></i></div>
+        <h2 class="h5">No responses yet</h2>
+        <p class="text-muted mb-0">Share the respondent link above to start collecting encrypted answers.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  {% for r in responses %}
+    <div class="card kr-response-card mb-3" id="response-{{ r['id'] }}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="fw-semibold">Response #{{ r['id'] }}</span>
+          <span class="kr-meta">submitted {{ r['submittedAt'] }} UTC</span>
+        </div>
+        <div class="response-content">
+          <dl class="mb-0">
+            {% for label in fields %}
+              <dt>{{ label }}</dt>
+              <dd class="kr-masked"><i class="bi bi-lock me-1"></i>&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</dd>
+            {% endfor %}
+          </dl>
+        </div>
+        <div class="text-end mt-2">
+          <button class="btn btn-sm btn-danger delete-response-btn" type="button"
+                  data-response-id="{{ r['id'] }}">
+            <i class="bi bi-trash"></i> Delete response
+          </button>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='encrypt.js') }}"></script>
+<script>
+  // Private key PEM (PKCS#8), unlocked from the PKCS#12 keystore at login and
+  // delivered over this authenticated HTTPS session. Used only in-page.
+  const PRIVATE_KEY_PEM = {{ private_key_pem | tojson }};
+  const RESPONSES = {{ responses | tojson }};
+
+  document.getElementById("decrypt-btn").addEventListener("click", async () => {
+    const statusArea = document.getElementById("status-area");
+    try {
+      const privateKey = await importRsaPrivateKey(PRIVATE_KEY_PEM);
+      let ok = 0, failed = 0;
+
+      for (const response of RESPONSES) {
+        const card = document.getElementById(`response-${response.id}`);
+        if (!card) continue; // already deleted from the page
+        const content = card.querySelector(".response-content");
+        try {
+          const answers = await decryptResponse(privateKey, response);
+          // Render each field/answer pair; textContent (not innerHTML) so
+          // respondent-supplied strings can never inject markup.
+          const list = document.createElement("dl");
+          list.className = "mb-0";
+          for (const [label, value] of Object.entries(answers)) {
+            const dt = document.createElement("dt");
+            dt.textContent = label;
+            const dd = document.createElement("dd");
+            dd.textContent = value;
+            list.append(dt, dd);
+          }
+          content.replaceChildren(list);
+          card.classList.add("kr-decrypted");
+          ok++;
+        } catch (err) {
+          // AES-GCM tag verification failed → the ciphertext was modified.
+          content.innerHTML =
+            '<div class="alert alert-danger mb-0">&#9888;&#65039; Decryption failed — ' +
+            "this response failed its integrity check and may have been tampered with.</div>";
+          failed++;
+        }
+      }
+
+      statusArea.innerHTML =
+        '<div class="alert alert-success">Decrypted ' + ok + " response(s)" +
+        (failed ? ", " + failed + " failed integrity checks" : "") + ".</div>";
+    } catch (err) {
+      statusArea.innerHTML =
+        '<div class="alert alert-danger">Could not import your private key: ' + err.message + "</div>";
+    }
+  });
+
+  document.querySelectorAll(".delete-response-btn").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm("Delete this response permanently?")) return;
+      const id = button.dataset.responseId;
+      try {
+        const res = await fetch(`/response/${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Server returned ${res.status}`);
+        }
+        document.getElementById(`response-${id}`).remove();
+      } catch (err) {
+        document.getElementById("status-area").innerHTML =
+          '<div class="alert alert-danger">Could not delete the response: ' + err.message + "</div>";
+      }
+    });
+  });
+</script>
+{% endblock %}

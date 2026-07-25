@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Register — Krypto{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="card kr-auth-card">
+    <div class="card-body">
+      <div class="text-center mb-4">
+        <span class="kr-auth-logo"><i class="bi bi-shield-lock-fill me-1"></i>Krypto</span>
+      </div>
+      <p class="text-muted small">
+        Registering generates your RSA-2048 keypair, gets your certificate signed
+        by the mini CA, and seals your private key in a PKCS#12 keystore encrypted
+        with this password. <strong>If you forget the password, your responses are
+        unrecoverable</strong> — that's the point.
+      </p>
+      <form method="post" action="{{ url_for('register', next=request.args.get('next')) }}">
+        <div class="mb-3">
+          <label class="form-label" for="username">Username</label>
+          <input class="form-control" id="username" name="username" required autofocus>
+        </div>
+        <div class="mb-4">
+          <label class="form-label" for="password">Password (min 8 characters)</label>
+          <input class="form-control" id="password" name="password" type="password" minlength="8" required>
+        </div>
+        <button class="btn btn-primary w-100" type="submit">Register &amp; generate keys</button>
+      </form>
+      <p class="small text-muted text-center mt-4 mb-0">Already have an account?
+        <a href="{{ url_for('login', next=request.args.get('next')) }}">Log in</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}

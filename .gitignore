@@ -1,0 +1,21 @@
+# Instance data: SQLite DB, CA private key, Flask session secret.
+# NEVER commit these — the CA key and secret key are the deployment's secrets.
+instance/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Environment files
+.env
+
+# OS / editor noise
+.DS_Store
+.vscode/
+.idea/
+
+# Coursework writeup — kept out of the public repo
+report_draft.md

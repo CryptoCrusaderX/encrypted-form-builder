@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ form['title'] }} — Krypto{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="card kr-fill-card">
+    <div class="card-body">
+      <span class="badge kr-badge-teal mb-3">
+        <i class="bi bi-lock-fill me-1"></i>Your answers are encrypted in this browser
+      </span>
+      <h2 class="mb-2">{{ form['title'] }}</h2>
+      {% if form['description'] %}<p class="text-muted">{{ form['description'] }}</p>{% endif %}
+
+      <p class="kr-meta mb-4">
+        Answers are sealed with AES-256-GCM + RSA-OAEP before they leave this
+        page. The server — and anyone who breaches it — only ever sees ciphertext.
+      </p>
+
+      <div id="status-area"></div>
+
+      <form id="response-form">
+        {% for label in fields %}
+          <div class="mb-3">
+            <label class="form-label" for="field-{{ loop.index0 }}">{{ label }}</label>
+            <input class="form-control response-field" id="field-{{ loop.index0 }}"
+                   data-label="{{ label }}" required>
+          </div>
+        {% endfor %}
+        <button class="btn btn-primary w-100 mt-3" type="submit" id="submit-btn">
+          <i class="bi bi-lock-fill me-1"></i>Encrypt &amp; submit
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='encrypt.js') }}"></script>
+<script>
+  const FORM_ID = {{ form['form_uuid'] | tojson }};
+  const OWNER_ID = {{ form['owner_id'] }};
+
+  document.getElementById("response-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const statusArea = document.getElementById("status-area");
+    const submitBtn = document.getElementById("submit-btn");
+    submitBtn.disabled = true;
+
+    try {
+      // 1. Fetch the form owner's certified RSA public key. The server has
+      //    already validated the certificate chain against the mini CA.
+      const keyResponse = await fetch(`/public-key/${OWNER_ID}`);
+      const keyData = await keyResponse.json();
+      if (!keyResponse.ok) throw new Error(keyData.error || "Could not fetch the owner's public key");
+
+      // 2. Collect answers into { label: value }.
+      const answers = {};
+      document.querySelectorAll(".response-field").forEach((input) => {
+        answers[input.dataset.label] = input.value;
+      });
+
+      // 3. Encrypt in-browser and submit (see static/encrypt.js).
+      await encryptAndSubmit(FORM_ID, keyData.publicKey, answers);
+
+      statusArea.innerHTML =
+        '<div class="alert alert-success">&#9989; Response encrypted and submitted. ' +
+        "Only the form owner can decrypt it.</div>";
+      document.getElementById("response-form").reset();
+    } catch (err) {
+      statusArea.innerHTML =
+        '<div class="alert alert-danger">Submission failed: ' + err.message + "</div>";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Krypto — Secure forms. Zero trust.{% endblock %}
+{% block content %}
+<section class="kr-hero">
+  <div class="container text-center">
+    <h1>Secure forms. Zero trust.</h1>
+    <p class="kr-hero-sub">
+      End-to-end encrypted forms powered by PKI.
+      Your answers never reach the server as plaintext.
+    </p>
+    <div class="d-flex justify-content-center flex-wrap gap-3">
+      <a class="btn btn-hero-light" href="{{ url_for('register') }}">Create a form</a>
+      <a class="btn btn-hero-outline" href="#features">Learn more &darr;</a>
+    </div>
+  </div>
+</section>
+
+<section class="kr-section kr-section-white" id="features">
+  <div class="container">
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <div class="kr-feature-icon mb-3"><i class="bi bi-lock-fill"></i></div>
+            <h2 class="h5">End-to-end encrypted</h2>
+            <p class="text-muted small mb-0">
+              Answers are sealed with AES-256-GCM in the respondent's browser
+              via the Web Crypto API. Plaintext never leaves their device.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <div class="kr-feature-icon mb-3"><i class="bi bi-shield-check"></i></div>
+            <h2 class="h5">PKI-powered</h2>
+            <p class="text-muted small mb-0">
+              A built-in Certificate Authority signs every user's RSA public
+              key into an X.509 certificate, so respondents always encrypt to
+              the genuine owner — never an impostor.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <div class="kr-feature-icon mb-3"><i class="bi bi-eye-slash-fill"></i></div>
+            <h2 class="h5">Zero plaintext storage</h2>
+            <p class="text-muted small mb-0">
+              The server stores ciphertext, wrapped keys and password-encrypted
+              keystores only. Even a full database breach reveals nothing readable.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
