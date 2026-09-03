@@ -1,122 +1,127 @@
-# 🔐 Krypto
+#  Encrypted Form Builder (krypto)
+[![Python](https://img.shields.io/badge/python-3.11.5-red.svg)](https://python.org)
+[![License MIT](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
 
-A PKI-based, end-to-end encrypted form application built for **ST6051CEM
-Practical Cryptography** (Softwarica College / Coventry University).
+#### *Krypto starts exactly where Google Forms stops being secure*
 
-Form responses are encrypted **in the respondent's browser** using hybrid
-cryptography — AES-256-GCM for the data, RSA-2048-OAEP to wrap the AES key —
-via the native Web Crypto API. The Flask server stores **ciphertext only**:
-even a complete database breach reveals nothing readable. A mini Certificate
-Authority signs every user's public key into an X.509 certificate, and private
-keys rest only inside password-encrypted PKCS#12 keystores.
+Krypto is an End-to-end encrypted form builder with PKI-based hybrid cryptography. Form responses are encrypted in the browser before they ever reach the server. 
+
+## Why This Exists
+Most form builders (Google Forms, Typeform, Jotform) store your data in plaintext in their server. The platform can read everything be it **medical histories, employee feedback, whistleblower reports.** If their database gets compromised, it's all your data that's going to be exposed.
+Also there is a slight chance that the filled information (data) can be changed when data is in motion *(never say never)* and neither the form participant nor the form owner will know about that.
+
+Krypto solves this by ensuring **only the form owner can decrypt all responses & If the data is modified in transit, the form owner will encounter a cryptographic failure when attempting to decrypt the response, indicating that the data may have been tampered with**
+
+<p align="center">
+  <img src="screenshots/homepage.jpg" width="800" alt="Krypto Homepage">
+</p>
 
 ## Architecture
 
+```mermaid
+graph LR
+    subgraph R["Respondent Browser"]
+        R1["1. Fetch Owner's Public Key"]
+        R2["2. Generate AES-256 Key + IV"]
+        R3["3. AES-GCM Encrypt Answers"]
+        R4["4. RSA-OAEP Wrap AES Key"]
+        R5["5. Append Nonce + Timestamp"]
+    end
+
+    subgraph S["Flask Server"]
+        S1["/public-key - Serve Public Key"]
+        S2["Mini CA - X.509 Certificates"]
+        S3["SQLite - Ciphertext Only"]
+        S4["Replay + Freshness Checks"]
+    end
+
+    subgraph O["Owner Browser"]
+        O1["6. Login Unlocks PKCS#12"]
+        O2["7. Private Key Import"]
+        O3["8. RSA-OAEP Unwrap AES Key"]
+        O4["9. AES-GCM Decrypt"]
+        O5["Plaintext ONLY in Browser"]
+    end
+
+    R5 -->|"POST /submit"| S4
+    S1 --> R1
+    S3 --> O1
+    
+    classDef client fill:#4488FF,color:white,stroke:#1A3A6B
+    classDef server fill:#FF4444,color:white,stroke:#8B0000
+    classDef db fill:#FF8844,color:white,stroke:#8B4500
+    
+    class R1,R2,R3,R4,R5 client
+    class O1,O2,O3,O4,O5 client
+    class S1,S2,S4 server
+    class S3 db
 ```
-  RESPONDENT'S BROWSER                    FLASK SERVER                FORM OWNER'S BROWSER
- ┌──────────────────────┐          ┌───────────────────────┐        ┌──────────────────────┐
- │ 1. fetch owner's     │◀────────▶│  /public-key/<id>     │        │ 6. login unlocks     │
- │    certified pub key │          │  (cert chain checked  │        │    PKCS#12 keystore  │
- │                      │          │   against mini CA)    │        │    with password     │
- │ 2. random AES-256    │          │                       │        │                      │
- │    key + 96-bit IV   │          │  ┌─────────────────┐  │  HTTPS │ 7. private key PEM   │
- │                      │          │  │   Mini CA (X.509)│  │──────▶│    imported via      │
- │ 3. AES-GCM encrypt   │          │  │   root + user    │  │        │    Web Crypto        │
- │    answers ────────┐ │          │  │   certificates   │  │        │                      │
- │                    │ │          │  └─────────────────┘  │        │ 8. RSA-OAEP unwraps  │
- │ 4. RSA-OAEP wrap   │ │          │                       │        │    the AES key       │
- │    AES key ────────┤ │  POST    │  ┌─────────────────┐  │        │                      │
- │                    │ │ /submit  │  │  SQLite: users,  │  │        │ 9. AES-GCM decrypts  │
- │ 5. + nonce (UUID4) ├─┼─────────▶│  │  forms,          │──┼───────▶│    (auth tag proves  │
- │    + timestamp     │ │          │  │  CIPHERTEXT only,│  │        │    integrity)        │
- └────────────────────┴─┘          │  │  nonces          │  │        │                      │
-                                   │  └─────────────────┘  │        │ plaintext exists     │
-        server never sees ─────────▶  replay + freshness    │        │ ONLY in the browser  │
-        plaintext or AES keys      │  checks on /submit     │        └──────────────────────┘
-                                   └───────────────────────┘
+## Setup
+
+**1. Clone the repository**
+```bash
+git clone https://github.com/CryptoCrusaderX/encrypted-form-builder.git
+cd encrypted-form-builder
 ```
 
-## Quick start
+**2. Create and activate a virtual environment**
+```bash
+python -m venv venv
+source venv/bin/activate  # On macOS/Linux
+venv\Scripts\activate     # On Windows
+```
 
+**3. Install dependencies**
 ```bash
 pip install -r requirements.txt
+```
+
+**4. Initialize the database**
+```bash
+flask shell
+>>> from models import init_db
+>>> init_db()
+>>> exit()
+```
+
+**5. Run the application**
+```bash
 flask run
 ```
 
-Then open <http://127.0.0.1:5000>, register (this generates your RSA keypair,
-CA-signed certificate and PKCS#12 keystore), create a form, and share its
-fill-in link (`http://127.0.0.1:5000/form/<uuid>`). Respondents must register
-and log in before they can submit. Note: in real deployments the app must sit
-behind **HTTPS** — the private-key delivery to the owner's browser depends on
-transport security.
+Open `http://127.0.0.1:5000` in your browser.
+
+> **Note:** The first user to register becomes the form owner. Subsequent users can fill forms but cannot create them.
 
 ## Features
 
-- **Owner dashboard** — every form as a card with its response count,
-  active/retired status, share-link copy button, and one-click deletion
-  (removes the form and all of its responses).
-- **Unguessable form links** — forms are addressed by UUID4 only, so response
-  and fill-in URLs cannot be enumerated (IDOR defence). Response pages are
-  strictly owner-only (403 otherwise).
-- **Form lifecycle** — retire a form to stop accepting submissions (respondents
-  see a "form closed" page); delete individual responses from the accordion
-  view of decrypted answers.
-- **Access control** — filling a form requires an account, and owners cannot
-  submit responses to their own forms.
+- **End-to-end encryption**
+  - AES-256-GCM encrypts data in the browser before submission.
+  - RSA-2048-OAEP wraps the AES key using the owner's public key.
+  - Server stores ciphertext only — plaintext never touches the server.
 
-## Running the tests
+- **PKI infrastructure**
+  - Mini Certificate Authority issues X.509 certificates for every user.
+  - Private keys stored inside password-encrypted PKCS#12 keystores.
+
+- **Form lifecycle & access control**
+  - Retire forms to stop submissions. Delete individual responses.
+  - Users must register to fill forms. Owners cannot submit to their own.
+
+- **Replay & tamper protection**
+  - UUID4 nonces + 5-minute freshness window prevent replay attacks.
+  - AES-GCM authentication tags detect ciphertext modification.
+
+## Testing
+
+Run the test suite to verify functionality and attack simulations:
 
 ```bash
 pytest tests/
 ```
 
-- `tests/test_crypto.py` — unit tests for key generation, certificate
-  issuance/verification, PKCS#12 round-trips and hybrid encryption.
-- `tests/test_attacks.py` — attack simulations against the live app:
-  **replay** (reused nonce → HTTP 400), **tampering** (bit-flipped ciphertext
-  → AES-GCM `InvalidTag`), **rogue CA** (foreign certificate fails chain
-  validation), **stale capture** (timestamp older than 5 minutes → HTTP 400),
-  plus a database-dump test proving no plaintext is ever stored.
 
-## Security design
-
-| Threat | Defence |
-|---|---|
-| Database breach | Client-side encryption; server stores AES-GCM ciphertext + RSA-wrapped keys only |
-| Replay attack | UUID4 nonce (DB-enforced uniqueness) + 5-minute timestamp freshness window |
-| MITM / key substitution | X.509 certificates chained to the mini CA root; unverifiable keys are never served |
-| Ciphertext tampering | AES-GCM authentication tag — any modification makes decryption fail loudly |
-| Private key theft at rest | Keys exist only inside PKCS#12 keystores encrypted with the user's password |
-| IDOR / URL enumeration | Forms addressed by UUID4 only; response pages enforce ownership (403) |
-
-## Use cases
-
-1. **Medical questionnaires** — patients submit symptoms and history that
-   only the requesting clinician can decrypt; the clinic's server, IT staff
-   and backups hold ciphertext only, supporting confidentiality obligations.
-2. **Whistleblower reports** — sources submit disclosures encrypted to a
-   journalist's or ombudsman's key; even a subpoena or seizure of the server
-   cannot expose the report's contents.
-3. **University exam feedback** — students give candid module feedback that
-   only the course leader can read, with the replay protection preventing
-   ballot-stuffing of duplicate submissions.
-
-## Project layout
-
-```
-app.py            Flask routes (thin — no crypto logic here)
-models.py         SQLite persistence (raw sqlite3, parameterised queries)
-crypto/ca.py      Mini X.509 Certificate Authority
-crypto/keys.py    RSA keypair + PKCS#12 keystore handling
-crypto/decrypt.py Hybrid AES-GCM / RSA-OAEP (Python mirror of the browser flow)
-static/encrypt.js All client-side Web Crypto operations, fully commented
-templates/        Bootstrap 5 UI
-tests/            Unit tests + attack simulations (pytest)
-```
-
-## Acknowledgements
-
-Built with [Claude Code](https://claude.com/claude-code).
 
 ## License
 
