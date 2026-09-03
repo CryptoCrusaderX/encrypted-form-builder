@@ -122,7 +122,6 @@ pytest tests/
 ```
 
 
-
 ## License
 
-[MIT](LICENSE)
+MIT License. See [LICENSE](LICENSE) for details.
