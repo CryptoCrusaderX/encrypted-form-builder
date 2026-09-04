@@ -11,7 +11,7 @@ Krypto is an End-to-end encrypted form builder with PKI-based hybrid cryptograph
 Most form builders (Google Forms, Typeform, Jotform) store your data in plaintext in their server. The platform can read everything be it **medical histories, employee feedback, whistleblower reports.** If their database gets compromised, it's all your data that's going to be exposed.
 Also there is a slight chance that the filled information (data) can be changed when data is in motion *(never say never)* and neither the form participant nor the form owner will know about that.
 
-Krypto solves this by ensuring **only the form owner can decrypt all responses & If the data is modified in transit, the form owner will encounter a cryptographic failure when attempting to decrypt the response, indicating that the data may have been tampered with**
+Krypto solves this by ensuring **only the form owner can decrypt all responses & If the data is modified in transit, the form participant will encounter a cryptographic failure when submitting the form, indicating that the data may have been tampered with**
 
 <p align="center">
   <img src="screenshots/homepage.jpg" width="800" alt="Krypto Homepage">
@@ -121,7 +121,3 @@ Run the test suite to verify functionality and attack simulations:
 pytest tests/
 ```
 
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
